@@ -32,3 +32,14 @@
 *.app
 
 build/
+
+CMakeFiles/
+
+*.vcxproj*
+
+*.sln
+
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+Makefile
