@@ -10,24 +10,24 @@ using namespace cv;
 
 double alpha_p(int M, int p){
     if(p == 0){
-        return 1 / sqrt(M);
+        return 1 / sqrt(double(M));
     } else{
-        return sqrt(2 / M);
+        return sqrt(2 / double(M));
     }
 }
 
 double alpha_q(int N, int q){
     if(q == 0){
-        return 1 / sqrt(N);
+        return 1 / sqrt(double(N));
     } else{
-        return sqrt(2 / N);
+        return sqrt(2 / (double(N)));
     }
 }
 
-map<vector<int>, vector<vector<double>>> compute_basis_functions(int M, int N){
+map<vector<int>, vector<vector<float>>> compute_basis_functions(int M, int N){
     double pi = M_PI;
 
-    map<vector<int>, vector<vector<double>>> basis_function_map;
+    map<vector<int>, vector<vector<float>>> basis_function_map;
 
     // for each frequency in x and y
     for (int p = 0; p < M; p++){
@@ -36,17 +36,17 @@ map<vector<int>, vector<vector<double>>> compute_basis_functions(int M, int N){
             // key to basis function
             vector<int> key = {p, q};
 
-            vector<vector<double>> basis_function;
+            vector<vector<float>> basis_function;
             // for each pixel in x and y
             for (int x = 0; x < M; x++){
 
-                vector<double> column;
+                vector<float> column;
 
                 for (int y = 0; y < N; y++){
-                    double A = (pi * (2*x + 1) * p) / 2 * M;
-                    double B = (pi * (2*y + 1) * q) / 2 * N;
+                    float A = (pi * (2*x + 1) * p) / (2 * M);
+                    float B = (pi * (2*y + 1) * q) / (2 * N);
 
-                    double intensity = alpha_p(M, p) * alpha_q(N, q) * cos(A) * cos(B);
+                    float intensity = alpha_p(M, p) * alpha_q(N, q) * cos(A) * cos(B);
 
                     column.push_back(intensity);
                 }
@@ -62,15 +62,15 @@ map<vector<int>, vector<vector<double>>> compute_basis_functions(int M, int N){
     return basis_function_map;
 }
 
-vector<vector<double>> get_dct_cofficients(Mat& image, int blocksize){
+vector<vector<float>> get_dct_cofficients(Mat& image, int blocksize){
     int M = image.rows;
     int N = image.cols;
 
-    vector<vector<double>> coefficients;
+    vector<vector<float>> coefficients;
 
     // initialize empty dct matrix of 0's
     for (int x = 0; x < M; x++){
-        vector<double> column;
+        vector<float> column;
         for (int y = 0; y < N; y++){
             column.push_back(0.0);
         }
@@ -99,7 +99,6 @@ vector<vector<double>> get_dct_cofficients(Mat& image, int blocksize){
                                 if (x < M - 1){
                                     intensity = int(image.at<uchar>(y, x));
                                 }
-                                
                             }
                         }
                     }
@@ -136,11 +135,12 @@ int main(){
     Mat grayscale;
     cvtColor(image, grayscale, COLOR_BGR2GRAY);
 
-    int dct_blocksize = 8;
-    double max_rows = 1000;
+    int dct_blocksize_x = 15;
+    int dct_blocksize_y = 8;
+    float max_rows = 1000;
     
     // downsize image to fit in screen
-    double scale_factor = 1.0;
+    float scale_factor = 1.0;
     if (image.rows > max_rows){
         scale_factor = max_rows / image.rows;
     }
@@ -150,26 +150,38 @@ int main(){
     resize(grayscale, grayscale, image_size);
 
     // get basis functions for 8x8 block size
-    map<vector<int>, vector<vector<double>>> basis_function_map = compute_basis_functions(dct_blocksize, dct_blocksize);
+    map<vector<int>, vector<vector<float>>> basis_function_map = compute_basis_functions(dct_blocksize_x, dct_blocksize_y);
 
-    for (int x = 0; x < dct_blocksize; x++){
-        for (int y = 0; y < dct_blocksize; y++){
+    // display basis functions
+    Mat basis_functions_image = Mat::zeros(Size(pow(dct_blocksize_x, 2) + dct_blocksize_x - 1, pow(dct_blocksize_y, 2) + dct_blocksize_y - 1), CV_8UC1);
+
+    int block_index_x = 0;
+    for (int x = 0; x < dct_blocksize_x; x++){
+        int block_index_y = 0;
+        for (int y = 0; y < dct_blocksize_y; y++){
             vector<int> key = {x, y};
-            vector<vector<double>> basis_func = basis_function_map[key];
+            vector<vector<float>> basis_func = basis_function_map[key];
 
             for (int row = 0; row < basis_func.size(); row++){
                 for (int col = 0; col < basis_func.at(0).size(); col++){
-                    cout << basis_func.at(row).at(col) << " ";
+                    float basis_func_val = basis_func.at(row).at(col);
+
+                    int grayscale_intensity = ((basis_func_val + 1) / 2) * 255;
+                    
+                    basis_functions_image.at<uchar>(block_index_y + col, block_index_x + row) = grayscale_intensity;
                 }
-                cout << endl;
             }
+            block_index_y += dct_blocksize_y + 1;
         }
+        block_index_x += dct_blocksize_x + 1;
     }
 
+    resize(basis_functions_image, basis_functions_image, image_size);
 
+    imshow("Grayscale", grayscale);
+    imshow("Basis Functions", basis_functions_image);
     //imshow("Original", image);
-    //imshow("Grayscale", grayscale);
-    //waitKey(0);
+    waitKey(0);
 
     return 0;
 }
