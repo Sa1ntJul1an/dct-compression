@@ -160,9 +160,7 @@ Mat get_dct_cofficients(Mat& image, map<vector<int>, vector<vector<float>>> basi
                     dct_coefficients.at<float>(x_index + p, y_index + q) = coefficient;
 
                 }
-                //cout << endl;
             }
-
             y_index += blocksize_y;
         }
         y_index = 0;
