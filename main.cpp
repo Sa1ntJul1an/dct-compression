@@ -221,11 +221,15 @@ Mat inverse_dct(Mat coefficients, map<vector<int>, vector<vector<float>>> basis_
 
             y_index += blocksize_y;
         }
-        cout << "Reconstructing image... " << float(image_block_count)/(blocks_in_x * blocks_in_y) * 100 << "%" << "\n";
+
+        imshow("Reconstructing image...", image_out);
+        waitKey(1);
 
         y_index = 0;
         x_index += blocksize_x;
     }
+
+    destroyAllWindows();
 
     return image_out;
 }
