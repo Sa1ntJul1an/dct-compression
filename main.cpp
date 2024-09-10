@@ -60,7 +60,6 @@ map<vector<int>, vector<vector<float>>> compute_basis_functions(int M, int N){
         }
     }
 
-
     return basis_function_map;
 }
 
@@ -79,9 +78,9 @@ Mat create_basis_func_image(map<vector<int>, vector<vector<float>>> basis_func_m
             vector<int> key = {x, y};
             vector<vector<float>> basis_func = basis_func_map[key];
 
-            for (int row = 0; row < basis_func.size(); row++){
-                for (int col = 0; col < basis_func.at(0).size(); col++){
-                    float basis_func_val = basis_func.at(row).at(col);
+            for (int col = 0; col < basis_func.size(); col++){
+                for (int row = 0; row < basis_func.at(0).size(); row++){
+                    float basis_func_val = basis_func.at(col).at(row);
 
                     if (basis_func_val < dct_min){
                         dct_min = basis_func_val;
@@ -105,16 +104,16 @@ Mat create_basis_func_image(map<vector<int>, vector<vector<float>>> basis_func_m
             vector<int> key = {x, y};
             vector<vector<float>> basis_func = basis_func_map[key];
 
-            for (int row = 0; row < basis_func.size(); row++){
-                for (int col = 0; col < basis_func.at(0).size(); col++){
-                    float basis_func_val = basis_func.at(row).at(col);
+            for (int col = 0; col < basis_func.size(); col++){
+                for (int row = 0; row < basis_func.at(0).size(); row++){
+                    float basis_func_val = basis_func.at(col).at(row);
 
                     float grayscale_intensity = (basis_func_val - dct_min) * func_val_map_range / dct_func_range;
 
-                    basis_functions_image.at<uchar>(block_index_x + row, block_index_y + col) = grayscale_intensity;
+                    basis_functions_image.at<uchar>(block_index_x + col, block_index_y + row) = grayscale_intensity;
                 }
             }
-            block_index_y += blocksize_x + 1;
+            block_index_y += blocksize_y + 1;
         }
         block_index_x += blocksize_x + 1;
     }
@@ -129,7 +128,7 @@ Mat get_dct_cofficients(Mat& image, map<vector<int>, vector<vector<float>>> basi
     int height = image.rows;
     int width = image.cols;
 
-    Mat dct_coefficients(height, width, CV_32FC1);
+    Mat dct_coefficients(width, height, CV_32FC1);
 
     int num_blocks_in_x = width / blocksize_x;
     int num_blocks_in_y = height / blocksize_y;
@@ -194,7 +193,6 @@ Mat inverse_dct(Mat coefficients, map<vector<int>, vector<vector<float>>> basis_
             for (int image_block_index_x = 0; image_block_index_x < blocksize_x; image_block_index_x++){
                 for (int image_block_index_y = 0; image_block_index_y < blocksize_y; image_block_index_y++){
                     // for each pixel in image block 
-                    float grayscale_intensity = 0;
 
                     for (int p = 0; p < blocksize_x; p++){
                         for (int q = 0; q < blocksize_y; q++){
@@ -210,14 +208,13 @@ Mat inverse_dct(Mat coefficients, map<vector<int>, vector<vector<float>>> basis_
                             // get value of basis func at pixel location
                             float basis_func_val = basis_func[image_block_index_x][image_block_index_y];
 
-                            grayscale_intensity += basis_func_val * dct_coefficient;
+                            image_block.at<uchar>(image_block_index_x, image_block_index_y) += basis_func_val * dct_coefficient;
                         }
                     }
-                    image_block.at<uchar>(image_block_index_x, image_block_index_y) = grayscale_intensity;
                 }
             }
             image_block_count ++;
-            image_block.copyTo(image_out(Rect(y_index, x_index, image_block.cols, image_block.rows)));
+            image_block.copyTo(image_out(Rect(x_index, y_index, image_block.cols, image_block.rows)));
 
             y_index += blocksize_y;
         }
