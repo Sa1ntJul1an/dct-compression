@@ -11,7 +11,7 @@ using namespace cv;
 float alpha_p(int M, int p){
     if(p == 0){
         return 1 / sqrt(float(M));
-    } else{
+    } else {
         return sqrt(2 / float(M));
     }
 }
@@ -20,7 +20,7 @@ float alpha_p(int M, int p){
 float alpha_q(int N, int q){
     if(q == 0){
         return 1 / sqrt(float(N));
-    } else{
+    } else {
         return sqrt(2 / (float(N)));
     }
 }
@@ -124,11 +124,11 @@ Mat create_basis_func_image(map<vector<int>, vector<vector<float>>> basis_func_m
 }
 
 
-Mat get_dct_cofficients(Mat& image, map<vector<int>, vector<vector<float>>> basis_func_map, int blocksize_x, int blocksize_y){
+map<vector<int>, Mat> get_dct_cofficients(Mat& image, map<vector<int>, vector<vector<float>>> basis_func_map, int blocksize_x, int blocksize_y){
     int height = image.rows;
     int width = image.cols;
 
-    Mat dct_coefficients(width, height, CV_32FC1);
+    map<vector<int>, Mat> dct_coefficients;
 
     int num_blocks_in_x = width / blocksize_x;
     int num_blocks_in_y = height / blocksize_y;
@@ -138,6 +138,8 @@ Mat get_dct_cofficients(Mat& image, map<vector<int>, vector<vector<float>>> basi
     for (int block_x = 0; block_x < num_blocks_in_x; block_x ++){
         for (int block_y = 0; block_y < num_blocks_in_y; block_y ++){
 
+            Mat coefficient_block = Mat(blocksize_x, blocksize_x, CV_32F);
+
             Mat image_block = image(Rect(x_index, y_index, blocksize_x, blocksize_y));
 
             for (int p = 0; p < blocksize_x; p++) {
@@ -146,20 +148,16 @@ Mat get_dct_cofficients(Mat& image, map<vector<int>, vector<vector<float>>> basi
                     vector<int> key = {p, q};
                     vector<vector<float>> basis_func = basis_func_map[key];
 
-                    float coefficient = 0.0;
-
                     for (int col = 0; col < blocksize_x; col ++) {
                         for (int row = 0; row < blocksize_y; row++) {
-                            coefficient += image_block.at<uchar>(col, row) * basis_func[col][row];
+                            coefficient_block.at<float>(col, row) += image_block.at<uchar>(col, row) * basis_func[col][row];
                         }
                     }
-
-                    //cout << coefficient << " ";
-
-                    dct_coefficients.at<float>(x_index + p, y_index + q) = coefficient;
-
                 }
             }
+            // add dct block for this block of the image to the dct coeff map
+            dct_coefficients[{block_x, block_y}] = coefficient_block;
+
             y_index += blocksize_y;
         }
         y_index = 0;
@@ -170,9 +168,9 @@ Mat get_dct_cofficients(Mat& image, map<vector<int>, vector<vector<float>>> basi
 }
 
 
-Mat inverse_dct(Mat coefficients, map<vector<int>, vector<vector<float>>> basis_function_map, int blocksize_x, int blocksize_y) {
-    int image_height = coefficients.rows;
-    int image_width = coefficients.cols;
+Mat inverse_dct(map<vector<int>, Mat> coefficients_map, map<vector<int>, vector<vector<float>>> basis_function_map, int blocksize_x, int blocksize_y, int imagesize_x, int imagesize_y) {
+    int image_height = imagesize_y;
+    int image_width = imagesize_x;
 
     Mat image_out = Mat::zeros(Size(image_width, image_height), CV_8UC1);
 
@@ -187,23 +185,27 @@ Mat inverse_dct(Mat coefficients, map<vector<int>, vector<vector<float>>> basis_
         for (int block_y = 0; block_y < blocks_in_y; block_y++) {
             // for each image block in the final image
 
+            // get the coefficients matrix at for this image block 
+            Mat coefficient_block = coefficients_map[{block_x, block_y}];
+
             // image block constructed with linear combination of dct basis functions and coefficients matrix 
             Mat image_block = Mat::zeros(Size(blocksize_x, blocksize_y), CV_8UC1);
 
-            for (int image_block_index_x = 0; image_block_index_x < blocksize_x; image_block_index_x++){
-                for (int image_block_index_y = 0; image_block_index_y < blocksize_y; image_block_index_y++){
-                    // for each pixel in image block 
+            for (int p = 0; p < blocksize_x; p++){
+                for (int q = 0; q < blocksize_y; q++){
+                    // for each basis function {p, q}
 
-                    for (int p = 0; p < blocksize_x; p++){
-                        for (int q = 0; q < blocksize_y; q++){
-                            // for each basis function {p, q}
+                    // get dct coefficient for each frequency
+                    float dct_coefficient = coefficient_block.at<float>(p, q);
 
-                            // get dct coefficient at image block pixel location from dct coefficients matrix
-                            float dct_coefficient = coefficients.at<float>(image_block_index_x + x_index, image_block_index_y + y_index);
+                    // get basis func
+                    vector<vector<float>> basis_func = basis_function_map[{p, q}];
 
-                            // get basis func
-                            vector<int> key = {p, q};
-                            vector<vector<float>> basis_func = basis_function_map[key];
+                    //matrix1.mul(dct_coefficient, matrix1, CV_MAT_MUL_INPLACE);
+
+                    for (int image_block_index_y = 0; image_block_index_y < blocksize_y; image_block_index_y++){
+                        for (int image_block_index_x = 0; image_block_index_x < blocksize_x; image_block_index_x++){
+                            // for each pixel in image block 
 
                             // get value of basis func at pixel location
                             float basis_func_val = basis_func[image_block_index_x][image_block_index_y];
@@ -263,9 +265,9 @@ int main(){
 
     Mat basis_functions_image = create_basis_func_image(basis_function_map, dct_blocksize_x, dct_blocksize_y, image_size);
 
-    Mat coefficients = get_dct_cofficients(grayscale, basis_function_map, dct_blocksize_x, dct_blocksize_y);
+    map<vector<int>, Mat> coefficients_map = get_dct_cofficients(grayscale, basis_function_map, dct_blocksize_x, dct_blocksize_y);
 
-    Mat reconstructed_image = inverse_dct(coefficients, basis_function_map, dct_blocksize_x, dct_blocksize_y);
+    Mat reconstructed_image = inverse_dct(coefficients_map, basis_function_map, dct_blocksize_x, dct_blocksize_y, image_size_x, image_size_y);
 
     imshow("Original Image, Grayscale", grayscale);
     imshow("Basis Functions", basis_functions_image);
